@@ -27,9 +27,8 @@ DEFAULT_AGENT = json.loads(EXAMPLES.read_text())["agent"]
 
 
 def summary(d: gate.Decision) -> str:
-    top_two = sorted(d.probabilities.items(), key=lambda kv: -kv[1])[:2]
-    options = ", ".join(f"{name.replace('_', ' ')} {p:.0%}" for name, p in top_two)
-    return f"{options}; value {d.value:.1f}/3; {d.call.ms:.0f} ms"
+    kind = f"; would {d.kind.replace('_', ' ')}" if d.reply else ""
+    return f"value {d.value:.1f}/3{kind}; {d.call.ms:.0f} ms"
 
 
 # ---------- python3 chime_in.py chat ----------
@@ -69,7 +68,7 @@ def chat() -> None:
                 print(f"  [{name} stays silent: {summary(last)}]\n")
                 continue
             print(f"  [{name} chimes in: {summary(last)}]")
-            reply, _ = gate.write_reply(agent, conversation, agent_knows)
+            reply, _ = gate.write_reply(agent, conversation, agent_knows, last.kind)
             print(f"{name}: {reply}\n")
             conversation.append({"from": name, "text": reply})
         except FoundryError as error:
@@ -83,7 +82,7 @@ def run(path: str) -> None:
     d = gate.should_chime_in(case["agent"], case["conversation"], case.get("context", ""))
     print(f"{'CHIME IN' if d.reply else 'stay silent'}: {summary(d)}, {d.call.tokens} tokens")
     if d.reply and settings()["chat_deployment"]:
-        reply, call = gate.write_reply(case["agent"], case["conversation"], case.get("context", ""))
+        reply, call = gate.write_reply(case["agent"], case["conversation"], case.get("context", ""), d.kind)
         print(f"\n{reply}\n\n({call.ms:.0f} ms, {call.tokens} tokens)")
 
 
@@ -104,7 +103,7 @@ def evaluate(path: str, compare: bool) -> None:
                 f"{'reply ' if d.reply else 'silent'} (want {'reply' if case['should_reply'] else 'silent'})  {summary(d)}")
         if compare:
             if d.reply:
-                gated_llm_tokens += gate.write_reply(*args)[1].tokens
+                gated_llm_tokens += gate.write_reply(*args, d.kind)[1].tokens
             text, call = gate.let_the_llm_decide(*args)
             llm_right += (text is not None) == case["should_reply"]
             llm_ms.append(call.ms)
@@ -129,10 +128,9 @@ class DemoPage(BaseHTTPRequestHandler):
             self.send_json(200, {
                 **json.loads(EXAMPLES.read_text()),
                 "settings": settings(),
-                "what_to_do": gate.WHAT_TO_DO,
                 "how_valuable": gate.HOW_VALUABLE,
-                "stay_silent_below": gate.STAY_SILENT_BELOW,
-                "value_at_least": gate.VALUE_AT_LEAST,
+                "value_at_least": gate.REPLY_IF_VALUE_AT_LEAST,
+                "kind_of_reply": gate.KIND_OF_REPLY,
             })
         else:
             self.send(404, b"not found", "text/plain")
@@ -143,10 +141,10 @@ class DemoPage(BaseHTTPRequestHandler):
         try:
             if self.path == "/decide":
                 d = gate.should_chime_in(*args)
-                self.send_json(200, {"reply": d.reply, "what_to_do": d.what_to_do, "probabilities": d.probabilities,
-                                     "chance_of_silence": d.chance_of_silence, "value": d.value, **call_json(d.call)})
+                self.send_json(200, {"reply": d.reply, "value": d.value, "kind": d.kind,
+                                     "kind_probabilities": d.kind_probabilities, **call_json(d.call)})
             elif self.path == "/reply":
-                text, call = gate.write_reply(*args)
+                text, call = gate.write_reply(*args, body.get("kind", ""))
                 self.send_json(200, {"text": text, **call_json(call)})
             elif self.path == "/llm-alone":
                 text, call = gate.let_the_llm_decide(*args)

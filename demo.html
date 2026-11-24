@@ -45,7 +45,7 @@
   .scale .dot { position:absolute; top:8px; width:18px; height:18px; margin-left:-9px; border-radius:50%; background:var(--accent); border:3px solid #fff; box-shadow:0 0 0 1px var(--accent); }
   .ticks { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin:0 0 4px; }
   .rule { border-top:1px solid var(--line); padding-top:12px; font-size:14px; }
-  .rule .ok { color:var(--yes); font-weight:700; } .rule .bad { color:#cf222e; font-weight:700; }
+  .ok { color:var(--yes); } .bad { color:#cf222e; }
   .reply { background:var(--bg); border-radius:10px; padding:12px 14px; white-space:pre-wrap; }
   .error { background:#ffebe9; color:#82071e; border-radius:10px; padding:12px 14px; white-space:pre-wrap; }
   details { margin-top:14px; } summary { cursor:pointer; font-weight:600; }
@@ -59,8 +59,8 @@
   <h1>Should the agent chime in?</h1>
   <p>A proactive agent normally runs a full LLM turn on every message just to decide whether to speak. Here a small decision model decides first:</p>
   <ol class="how">
-    <li><b>Microsoft-Decision-1.1</b> reads the conversation and answers two questions: <i>what should the agent do now?</i> and <i>how valuable would a reply be?</i></li>
-    <li>Only if both answers say "reply" does the <b>chat model</b> write one.</li>
+    <li><b>Microsoft-Decision-1.1</b> reads the conversation and scores <i>how valuable a reply would be</i>, and picks <i>what kind of reply</i> it would be.</li>
+    <li>Only if the value clears the bar does the <b>chat model</b> write that kind of reply.</li>
   </ol>
 </header>
 <main>
@@ -109,8 +109,7 @@ async function ask(path) {
 }
 
 function showDecision(d) {
-  const options = Object.keys(setup.what_to_do).map(k => [k, d.probabilities[k] || 0]).sort((a, b) => b[1] - a[1]);
-  const silenceOk = d.chance_of_silence < setup.stay_silent_below, valueOk = d.value >= setup.value_at_least;
+  const kinds = Object.keys(setup.kind_of_reply).map(k => [k, d.kind_probabilities[k] || 0]).sort((a, b) => b[1] - a[1]);
   const levels = setup.how_valuable.map(l => l.split(":")[0]);
   const x = v => (v / (levels.length - 1)) * 100;
   $("#out").innerHTML = `
@@ -120,20 +119,16 @@ function showDecision(d) {
       <span class="meta">${Math.round(d.ms)} ms · ${d.tokens} tokens · one call to ${esc(d.deployment)}</span>
     </div>
     <div class="q">
-      <h3>Question 1: what should the agent do now?</h3>
-      <div class="ask">Decision-1.1 gives a probability for each option; it picked <b>${label(d.what_to_do)}</b>.</div>
-      ${options.map(([k, p]) => `<div class="bar ${k === d.what_to_do ? "picked" : ""}" title="${esc(setup.what_to_do[k])}">
-        <span class="name">${label(k)}</span><span class="track"><span class="fill" style="width:${p * 100}%"></span></span><span class="pct">${pct(p)}</span></div>`).join("")}
-    </div>
-    <div class="q">
-      <h3>Question 2: how valuable would a reply be?</h3>
-      <div class="ask">Score <b>${d.value.toFixed(2)}</b> on a 0 to 3 scale (the dot); the dashed line is the bar to reply.</div>
+      <h3>Question 1, the gate: how valuable would a reply be?</h3>
+      <div class="ask">Score <b>${d.value.toFixed(2)}</b> on a 0 to 3 scale (the dot). The agent replies only if it reaches the dashed line, ${setup.value_at_least}: <b class="${d.reply ? "ok" : "bad"}">${d.reply ? "it does" : "it doesn't"}</b>.</div>
       <div class="scale"><div class="line"></div><div class="thr" style="left:${x(setup.value_at_least)}%"></div><div class="dot" style="left:${x(d.value)}%"></div></div>
       <div class="ticks">${levels.map(l => `<span>${l}</span>`).join("")}</div>
     </div>
-    <div class="rule">
-      The agent replies only if <b>Stay silent</b> is under ${pct(setup.stay_silent_below)} (here ${pct(d.chance_of_silence)}: <span class="${silenceOk ? "ok" : "bad"}">${silenceOk ? "yes" : "no"}</span>)
-      and the value is at least ${setup.value_at_least} (here ${d.value.toFixed(2)}: <span class="${valueOk ? "ok" : "bad"}">${valueOk ? "yes" : "no"}</span>).
+    <div class="q">
+      <h3>Question 2: if it replies, what kind of reply?</h3>
+      <div class="ask">This doesn't decide whether to speak; it tells the chat model what to write. Picked: <b>${label(d.kind)}</b>.</div>
+      ${kinds.map(([k, p]) => `<div class="bar ${k === d.kind ? "picked" : ""}" title="${esc(setup.kind_of_reply[k])}">
+        <span class="name">${label(k)}</span><span class="track"><span class="fill" style="width:${p * 100}%"></span></span><span class="pct">${pct(p)}</span></div>`).join("")}
     </div>
     <h2 style="margin-top:22px">3. The reply</h2>
     <div id="reply">${d.reply
@@ -162,7 +157,7 @@ async function decide() {
     showDecision(d);
     if (d.reply && setup.settings.chat_deployment) {
       try {
-        const r = await ask("/reply");
+        asked.kind = d.kind; const r = await ask("/reply");
         $("#reply").innerHTML = `<div class="reply">${esc(r.text)}</div><p class="hint">${esc(r.deployment)} · ${Math.round(r.ms)} ms · ${r.tokens} tokens</p>`;
       } catch (e) { $("#reply").innerHTML = `<div class="error">${esc(e.message)}</div>`; }
     }

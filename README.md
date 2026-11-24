@@ -4,10 +4,8 @@ A proof of concept: a small decision model decides whether a proactive agent sho
 
 A proactive agent usually reads every message with a full LLM turn just to decide whether to speak, so it pays for every message even when it stays silent. Here, one call to [Microsoft-Decision-1.1](https://learn.microsoft.com/azure/foundry/foundry-models/how-to/use-foundry-models-microsoft-decision) asks two questions about the conversation:
 
-- **What should the agent do now?** A choice of `stay_silent`, `answer_question`, `share_context`, `correct_mistake` or `do_task`, with a probability for each.
-- **How valuable would a reply be?** A score from 0 (noise) to 3 (people need it now).
-
-The LLM drafts a reply only when `stay_silent` is under 50% and the value is at least 1.5.
+- **How valuable would a reply be?** A score from 0 (nothing to add) to 3 (people need it now). This is the gate: the agent replies only if the score is at least 1.5.
+- **If it replies, what kind of reply?** A choice of `answer_question`, `share_context`, `correct_mistake` or `do_task`. This doesn't decide whether to speak; it tells the LLM what to write.
 
 **Read the code:** [`gate.py`](gate.py) is the whole idea in about 100 lines: the two questions, the rule and the reply. [`foundry.py`](foundry.py) is the plumbing for calling Foundry, and [`chime_in.py`](chime_in.py) holds the commands below.
 
@@ -34,12 +32,12 @@ python3 chime_in.py chat
 
 ```text
 > Maya: lunch anyone?
-  [Atlas stays silent: stay silent 98%, share context 1%; value 0.3/3; 448 ms]
+  [Atlas stays silent: value 0.2/3; 340 ms]
 > Leo: yes, tacos at 12:30
-  [Atlas stays silent: stay silent 96%, share context 4%; value 0.2/3; 334 ms]
+  [Atlas stays silent: value 0.2/3; 323 ms]
 > Leo: oh and see you all at the Contoso review on Wednesday
-  [Atlas chimes in: correct mistake 88%, share context 8%; value 2.4/3; 368 ms]
-Atlas: Small update: the Contoso review was moved to Thursday at 10:00 PT.
+  [Atlas chimes in: value 2.2/3; would correct mistake; 331 ms]
+Atlas: Small correction: the Contoso review was moved to Thursday at 10:00 PT.
 ```
 
 (Here the agent was told the review moved to Thursday.)
@@ -59,7 +57,7 @@ On the 12 made-up conversations in [`examples/eval.json`](examples/eval.json), o
 
 | | Right calls | Median time per message |
 |---|---|---|
-| Decision-1.1 gate | 12 of 12 | 409 ms |
-| Always-on LLM deciding for itself | 12 of 12 | 1,206 ms |
+| Decision-1.1 gate | 12 of 12 | 330 ms |
+| LLM deciding for itself | 11 of 12 | 1,220 ms |
 
-Twelve easy cases show the gate works, not that it beats an LLM; harder, real-shaped conversations are the next test. The token counts in this toy don't settle cost either: the gate's prompt carries the option descriptions every time, while the always-on LLM here has a one-line prompt. A real proactive agent carries its full instructions, tools and memory on every turn, which is the cost the gate avoids.
+The LLM's miss was "Leo, can you send me your slides?", a question for someone else, and it varies between runs. Twelve easy cases show the gate works, not that it beats an LLM; harder, real-shaped conversations are the next test. The token counts in this toy don't settle cost either: the gate's prompt carries the option descriptions every time, while the always-on LLM here has a one-line prompt. A real proactive agent carries its full instructions, tools and memory on every turn, which is the cost the gate avoids.
