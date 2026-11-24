@@ -4,10 +4,12 @@ A proof of concept: a small decision model decides whether a proactive agent sho
 
 A proactive agent usually reads every message with a full LLM turn just to decide whether to speak, so it pays for every message even when it stays silent. Here, one call to [Microsoft-Decision-1.1](https://learn.microsoft.com/azure/foundry/foundry-models/how-to/use-foundry-models-microsoft-decision) asks two questions about the conversation:
 
-- **How should the agent contribute?** A choice of `stay_silent`, `answer_question`, `share_context`, `correct_mistake` or `do_task`, with a probability for each.
+- **What should the agent do now?** A choice of `stay_silent`, `answer_question`, `share_context`, `correct_mistake` or `do_task`, with a probability for each.
 - **How valuable would a reply be?** A score from 0 (noise) to 3 (people need it now).
 
-The LLM drafts a reply only when `stay_silent` is under 50% and the value is at least 1.5. Both thresholds are at the top of [`chime_in.py`](chime_in.py).
+The LLM drafts a reply only when `stay_silent` is under 50% and the value is at least 1.5.
+
+**Read the code:** [`gate.py`](gate.py) is the whole idea in about 100 lines: the two questions, the rule and the reply. [`foundry.py`](foundry.py) is the plumbing for calling Foundry, and [`chime_in.py`](chime_in.py) holds the commands below.
 
 ## Try it
 
