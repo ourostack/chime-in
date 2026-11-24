@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Should the agent chime in?</title>
+<style>
+  :root { --ink:#1f2328; --muted:#59636e; --line:#d1d9e0; --bg:#f6f8fa; --yes:#1a7f37; --no:#59636e; --accent:#0969da; --warn:#9a6700; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); }
+  header { padding:20px 28px 8px; }
+  h1 { margin:0 0 4px; font-size:22px; }
+  header p { margin:0; color:var(--muted); }
+  ol.how { margin:8px 0 0; padding-left:20px; color:var(--muted); }
+  main { display:grid; grid-template-columns:minmax(320px,1fr) minmax(360px,1.3fr); gap:20px; padding:16px 28px 28px; }
+  @media (max-width:900px) { main { grid-template-columns:1fr; } }
+  section { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px; }
+  h2 { margin:0 0 12px; font-size:16px; }
+  label { display:block; font-weight:600; margin:14px 0 4px; }
+  label small { font-weight:400; color:var(--muted); }
+  select, textarea, input { width:100%; font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  textarea { resize:vertical; }
+  #conversation { min-height:150px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; }
+  button { font:inherit; font-weight:600; border:0; border-radius:8px; padding:10px 16px; cursor:pointer; }
+  .primary { background:var(--accent); color:#fff; width:100%; margin-top:16px; font-size:16px; }
+  .secondary { background:var(--bg); border:1px solid var(--line); color:var(--ink); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .hint { color:var(--muted); font-size:13px; margin-top:4px; }
+  .verdict { display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:10px; margin-bottom:16px; }
+  .verdict.yes { background:#dafbe1; } .verdict.no { background:#eaeef2; }
+  .verdict b { font-size:22px; }
+  .verdict .meta { color:var(--muted); font-size:13px; }
+  .q { margin:18px 0; }
+  .q h3 { margin:0 0 2px; font-size:14px; }
+  .q .ask { color:var(--muted); font-size:13px; margin-bottom:8px; }
+  .bar { display:grid; grid-template-columns:150px 1fr 48px; align-items:center; gap:8px; margin:4px 0; font-size:13px; }
+  .bar .track { height:14px; background:var(--bg); border-radius:7px; overflow:hidden; position:relative; }
+  .bar .fill { display:block; height:100%; background:#8c959f; border-radius:7px; }
+  .bar.picked .fill { background:var(--accent); }
+  .bar.picked .name { font-weight:700; }
+  .bar .pct { text-align:right; font-variant-numeric:tabular-nums; }
+  .scale { position:relative; height:40px; margin:8px 6px 0; }
+  .scale .line { position:absolute; top:14px; left:0; right:0; height:6px; background:linear-gradient(90deg,#eaeef2,#8c959f); border-radius:3px; }
+  .scale .thr { position:absolute; top:6px; height:22px; border-left:2px dashed var(--warn); }
+  .scale .dot { position:absolute; top:8px; width:18px; height:18px; margin-left:-9px; border-radius:50%; background:var(--accent); border:3px solid #fff; box-shadow:0 0 0 1px var(--accent); }
+  .ticks { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin:0 0 4px; }
+  .rule { border-top:1px solid var(--line); padding-top:12px; font-size:14px; }
+  .rule .ok { color:var(--yes); font-weight:700; } .rule .bad { color:#cf222e; font-weight:700; }
+  .reply { background:var(--bg); border-radius:10px; padding:12px 14px; white-space:pre-wrap; }
+  .error { background:#ffebe9; color:#82071e; border-radius:10px; padding:12px 14px; white-space:pre-wrap; }
+  details { margin-top:14px; } summary { cursor:pointer; font-weight:600; }
+  pre { background:#0d1117; color:#e6edf3; padding:12px; border-radius:8px; overflow:auto; font-size:12px; }
+  .empty { color:var(--muted); }
+  .compare { margin-top:12px; font-size:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Should the agent chime in?</h1>
+  <p>A proactive agent normally runs a full LLM turn on every message just to decide whether to speak. Here a small decision model decides first:</p>
+  <ol class="how">
+    <li><b>Microsoft-Decision-1.1</b> reads the conversation and answers two questions: <i>how should the agent contribute?</i> and <i>how valuable would a reply be?</i></li>
+    <li>Only if both answers say "reply" does the <b>chat model</b> write one.</li>
+  </ol>
+</header>
+<main>
+  <section>
+    <h2>1. The conversation</h2>
+    <label for="example">Start from an example <small>(made-up team chats)</small></label>
+    <select id="example"></select>
+    <label for="agent">Who the agent is</label>
+    <input id="agent">
+    <label for="context">What the agent knows <small>(from notes, calendars, records)</small></label>
+    <textarea id="context" rows="2" placeholder="Leave empty if it knows nothing beyond the chat"></textarea>
+    <label for="conversation">Messages <small>(one per line: Name: message)</small></label>
+    <textarea id="conversation"></textarea>
+    <div class="hint">Edit anything and run it again to see how the decision moves.</div>
+    <button class="primary" id="go">Ask Decision-1.1</button>
+  </section>
+  <section id="out">
+    <h2>2. What the decision model said</h2>
+    <p class="empty">Pick an example and press <b>Ask Decision-1.1</b>.</p>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+let setup, last;
+const pct = p => (p * 100).toFixed(p < 0.01 && p > 0 ? 1 : 0) + "%";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const label = k => k.replace(/_/g, " ").replace(/^./, c => c.toUpperCase());
+
+function parseConversation() {
+  return $("#conversation").value.split("\n").map(l => l.trim()).filter(Boolean).map(l => {
+    const i = l.indexOf(":");
+    return i > 0 ? { from: l.slice(0, i).trim(), text: l.slice(i + 1).trim() } : { from: "Someone", text: l };
+  });
+}
+function payload() {
+  return { agent: $("#agent").value, context: $("#context").value, conversation: parseConversation() };
+}
+function loadExample(i) {
+  const c = setup.cases[i];
+  $("#context").value = c.context || "";
+  $("#conversation").value = c.conversation.map(m => `${m.from}: ${m.text}`).join("\n");
+}
+async function post(path, body) {
+  const r = await fetch(path, { method: "POST", body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function render(g) {
+  const moves = Object.keys(setup.moves).map(k => [k, g.move_probabilities[k] || 0]).sort((a, b) => b[1] - a[1]);
+  const silentOk = g.p_silent < setup.max_silent, valueOk = g.value >= setup.min_value;
+  const levels = setup.value_levels.map(l => l.split(":")[0]);
+  const x = v => (v / (levels.length - 1)) * 100;
+  $("#out").innerHTML = `
+    <h2>2. What the decision model said</h2>
+    <div class="verdict ${g.reply ? "yes" : "no"}">
+      <b>${g.reply ? "Chime in" : "Stay silent"}</b>
+      <span class="meta">${Math.round(g.ms)} ms · ${g.tokens} tokens · one call to ${esc(setup.config.decision_deployment)}</span>
+    </div>
+    <div class="q">
+      <h3>Question 1: how should the agent contribute?</h3>
+      <div class="ask">Decision-1.1 gives a probability for each option; it picked <b>${label(g.move)}</b>.</div>
+      ${moves.map(([k, p]) => `<div class="bar ${k === g.move ? "picked" : ""}" title="${esc(setup.moves[k])}">
+        <span class="name">${label(k)}</span><span class="track"><span class="fill" style="width:${p * 100}%"></span></span><span class="pct">${pct(p)}</span></div>`).join("")}
+    </div>
+    <div class="q">
+      <h3>Question 2: how valuable would a reply be?</h3>
+      <div class="ask">Score <b>${g.value.toFixed(2)}</b> on a 0 to 3 scale (the dot); the dashed line is the bar to reply.</div>
+      <div class="scale"><div class="line"></div><div class="thr" style="left:${x(setup.min_value)}%"></div><div class="dot" style="left:${x(g.value)}%"></div></div>
+      <div class="ticks">${levels.map(l => `<span>${l}</span>`).join("")}</div>
+    </div>
+    <div class="rule">
+      The agent replies only if <b>Stay silent</b> is under ${pct(setup.max_silent)} (here ${pct(g.p_silent)}: <span class="${silentOk ? "ok" : "bad"}">${silentOk ? "yes" : "no"}</span>)
+      and the value is at least ${setup.min_value} (here ${g.value.toFixed(2)}: <span class="${valueOk ? "ok" : "bad"}">${valueOk ? "yes" : "no"}</span>).
+    </div>
+    <h2 style="margin-top:22px">3. The reply</h2>
+    <div id="reply">${g.reply
+      ? (setup.config.chat_deployment ? `<p class="empty">Asking ${esc(setup.config.chat_deployment)} to write it…</p>` : `<p class="empty">No chat model is deployed beside the decision model, so there's no draft.</p>`)
+      : `<p class="empty">Nothing. The chat model never ran, so this message cost one small decision call instead of a full LLM turn.</p>`}</div>
+    ${setup.config.chat_deployment ? `<div class="compare"><button class="secondary" id="cmp">Compare: what would an always-on LLM decide?</button><div id="cmpout"></div></div>` : ""}
+    <details><summary>Exact request sent to Decision-1.1</summary><pre>${esc(JSON.stringify(g.request, null, 2))}</pre></details>
+    <details><summary>Exact response</summary><pre>${esc(JSON.stringify(g.response, null, 2))}</pre></details>`;
+  const cmp = $("#cmp");
+  if (cmp) cmp.onclick = async () => {
+    cmp.disabled = true; $("#cmpout").innerHTML = `<p class="empty">Running the chat model on its own…</p>`;
+    try {
+      const b = await post("/reply", { ...last, always_on: true });
+      $("#cmpout").innerHTML = `<p>Without the gate, ${esc(b.model)} read the chat and decided to <b>${b.silent ? "stay silent" : "reply"}</b>, taking ${Math.round(b.ms)} ms and ${b.tokens} tokens of a much larger model. A real agent's turn also carries its full instructions, tools and memory, so it costs far more than this.</p>${b.silent ? "" : `<div class="reply">${esc(b.text)}</div>`}`;
+    } catch (e) { $("#cmpout").innerHTML = `<div class="error">${esc(e.message)}</div>`; }
+    cmp.disabled = false;
+  };
+}
+
+async function go() {
+  last = payload();
+  if (!last.conversation.length) return;
+  $("#go").disabled = true; $("#go").textContent = "Asking…";
+  try {
+    const g = await post("/gate", last);
+    render(g);
+    if (g.reply && setup.config.chat_deployment) {
+      try {
+        const r = await post("/reply", last);
+        $("#reply").innerHTML = `<div class="reply">${esc(r.text)}</div><p class="hint">${esc(r.model)} · ${Math.round(r.ms)} ms · ${r.tokens} tokens</p>`;
+      } catch (e) { $("#reply").innerHTML = `<div class="error">${esc(e.message)}</div>`; }
+    }
+  } catch (e) {
+    $("#out").innerHTML = `<h2>2. What the decision model said</h2><div class="error">${esc(e.message)}</div>`;
+  }
+  $("#go").disabled = false; $("#go").textContent = "Ask Decision-1.1";
+}
+
+(async () => {
+  setup = await (await fetch("/setup")).json();
+  $("#agent").value = setup.agent;
+  $("#example").innerHTML = setup.cases.map((c, i) => `<option value="${i}">${esc(c.name)} (should ${c.should_reply ? "reply" : "stay silent"})</option>`).join("");
+  $("#example").onchange = e => { loadExample(+e.target.value); go(); };
+  $("#go").onclick = go;
+  loadExample(0);
+})();
+</script>
+</body>
+</html>

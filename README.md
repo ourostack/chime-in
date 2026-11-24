@@ -1,6 +1,6 @@
 # chime-in
 
-Labs, unsupported. A proof of concept: a small decision model decides whether a proactive agent should reply to a conversation, so the expensive LLM runs only when a reply is worth sending.
+A proof of concept: a small decision model decides whether a proactive agent should reply to a conversation, so the expensive LLM runs only when a reply is worth sending.
 
 A proactive agent usually reads every message with a full LLM turn just to decide whether to speak, so it pays for every message even when it stays silent. Here, one call to [Microsoft-Decision-1.1](https://learn.microsoft.com/azure/foundry/foundry-models/how-to/use-foundry-models-microsoft-decision) asks two questions about the conversation:
 
@@ -9,42 +9,47 @@ A proactive agent usually reads every message with a full LLM turn just to decid
 
 The LLM drafts a reply only when `stay_silent` is under 50% and the value is at least 1.5. Both thresholds are at the top of [`chime_in.py`](chime_in.py).
 
-## Set up
+## Try it
 
-1. In [Foundry](https://ai.azure.com), open a project, find **Microsoft-Decision-1.1** in the model catalog and deploy it. Decision-1.1 is generally available, so you don't need access to any internal resource. Give the deployment enough rate limit for your test: a capacity of 1 allows one request a minute.
-2. To draft replies too, deploy a chat model on the same resource.
-3. Sign in with `az login`, or set `FOUNDRY_API_KEY` if the resource allows keys.
-4. Set where to call:
+You need Python 3.10 or later and the [Azure CLI](https://aka.ms/azcli). Nothing to install.
+
+1. Deploy the model once: open [Microsoft-Decision-1.1 in the Foundry catalog](https://ai.azure.com/catalog/models/Microsoft-Decision-1.1), choose **Deploy** and pick any project. It's generally available, so you don't need access to any internal resource. Set the capacity above 1, because 1 allows only one request a minute. To see draft replies too, deploy a chat model (such as a GPT model) in the same project.
+2. Run:
 
 ```sh
-export FOUNDRY_ENDPOINT=https://<your-resource>.cognitiveservices.azure.com
-export DECISION_DEPLOYMENT=<your Decision-1.1 deployment name>   # default: decision-1-1
-export CHAT_DEPLOYMENT=<your chat model deployment name>          # optional
+az login
+git clone https://github.com/ourostack/chime-in && cd chime-in
+python3 chime_in.py demo
 ```
 
-Python 3.10 or later; no packages to install.
+The first run finds your deployment by itself and remembers it in `~/.config/chime-in/config.json`. A page opens in your browser: pick an example chat or type your own, press **Ask Decision-1.1**, and it shows the verdict, the probability behind every option, the reply the chat model wrote, and the exact request and response.
 
-## Use it
-
-Gate one conversation, and draft a reply if it passes:
+To watch it decide message by message instead, chat in the terminal:
 
 ```sh
-python3 chime_in.py run examples/one.json
+python3 chime_in.py chat
 ```
 
 ```text
-move=correct_mistake p_silent=0.01 value=2.64/3 -> REPLY (335 ms, 335 tokens)
-
-Small update: the Contoso review was moved to Thursday at 10:00 PT. Contoso confirmed by email.
+> Maya: lunch anyone?
+  [Atlas stays silent: stay silent 98%, share context 1%; value 0.3/3; 448 ms]
+> Leo: yes, tacos at 12:30
+  [Atlas stays silent: stay silent 96%, share context 4%; value 0.2/3; 334 ms]
+> Leo: oh and see you all at the Contoso review on Wednesday
+  [Atlas chimes in: correct mistake 88%, share context 8%; value 2.4/3; 368 ms]
+Atlas: Small update: the Contoso review was moved to Thursday at 10:00 PT.
 ```
 
-Score the gate against labeled conversations, and with `--compare` also run an always-on LLM on each one to compare tokens:
+(Here the agent was told the review moved to Thursday.)
 
-```sh
-python3 chime_in.py eval --compare
-```
+## Other commands
 
-A conversation file has the agent's description, what the agent knows (`context`) and the messages. See [`examples/`](examples). The examples are made up; replace them with conversations shaped like yours before trusting the thresholds.
+- `python3 chime_in.py run examples/one.json` gates one conversation file and prints the result.
+- `python3 chime_in.py eval --compare` scores the gate on the labeled chats in [`examples/eval.json`](examples/eval.json) and, with `--compare`, runs an LLM on every chat to compare.
+
+A conversation file has the agent's description, what the agent knows (`context`) and the messages. The examples are made up; use chats shaped like yours before trusting the thresholds.
+
+To skip the search, or to use an API key, set `FOUNDRY_ENDPOINT`, `DECISION_DEPLOYMENT`, `CHAT_DEPLOYMENT` and `FOUNDRY_API_KEY`.
 
 ## First results
 
