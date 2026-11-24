@@ -1,0 +1,8 @@
+{
+  "agent": "Atlas, the team's assistant. It can search the team's notes, customer records and calendars.",
+  "context": "The Contoso review moved from Wednesday to Thursday 10:00 PT; Contoso confirmed by mail.",
+  "conversation": [
+    {"from": "Leo", "text": "see you all at the Contoso review on Wednesday"},
+    {"from": "Maya", "text": "👍"}
+  ]
+}

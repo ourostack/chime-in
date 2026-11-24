@@ -1,0 +1,105 @@
+{
+  "agent": "Atlas, the team's assistant. It can search the team's notes, customer records and calendars.",
+  "cases": [
+    {
+      "name": "lunch plans",
+      "should_reply": false,
+      "conversation": [
+        {"from": "Maya", "text": "lunch anyone?"},
+        {"from": "Leo", "text": "yes! tacos at 12:30?"},
+        {"from": "Maya", "text": "perfect"}
+      ]
+    },
+    {
+      "name": "open question about notes",
+      "should_reply": true,
+      "context": "Notes from the Contoso kickoff on Nov 18 are in the team notes under customers/contoso.",
+      "conversation": [
+        {"from": "Maya", "text": "does anyone have the notes from the Contoso kickoff?"},
+        {"from": "Leo", "text": "hmm not sure where those ended up"}
+      ]
+    },
+    {
+      "name": "asked the agent directly",
+      "should_reply": true,
+      "context": "Maya's calendar tomorrow: 9:00 standup, 11:00 Fabrikam review, 15:00 1:1 with Leo.",
+      "conversation": [
+        {"from": "Maya", "text": "Atlas, what does my day look like tomorrow?"}
+      ]
+    },
+    {
+      "name": "agreement, nothing open",
+      "should_reply": false,
+      "conversation": [
+        {"from": "Leo", "text": "I'll send the deck tonight"},
+        {"from": "Maya", "text": "sounds good, thanks!"}
+      ]
+    },
+    {
+      "name": "wrong meeting day",
+      "should_reply": true,
+      "context": "The Contoso review moved from Wednesday to Thursday 10:00 PT; Contoso confirmed by mail.",
+      "conversation": [
+        {"from": "Leo", "text": "see you all at the Contoso review on Wednesday"},
+        {"from": "Maya", "text": "👍"}
+      ]
+    },
+    {
+      "name": "already answered",
+      "should_reply": false,
+      "context": "The Q3 deck is in the shared drive.",
+      "conversation": [
+        {"from": "Maya", "text": "where's the Q3 deck?"},
+        {"from": "Leo", "text": "here: shared drive > decks > Q3"},
+        {"from": "Maya", "text": "got it, thanks"}
+      ]
+    },
+    {
+      "name": "personal news",
+      "should_reply": false,
+      "conversation": [
+        {"from": "Leo", "text": "my dog is sick, I'm taking the afternoon off"},
+        {"from": "Maya", "text": "oh no, hope she feels better!"}
+      ]
+    },
+    {
+      "name": "missed the meeting",
+      "should_reply": true,
+      "context": "Yesterday's planning notes: the team chose design B, Leo owns the pilot, and the pilot starts Dec 1.",
+      "conversation": [
+        {"from": "Sam", "text": "I missed yesterday's planning meeting, what did we decide?"}
+      ]
+    },
+    {
+      "name": "opinion debate",
+      "should_reply": false,
+      "conversation": [
+        {"from": "Leo", "text": "honestly I like the blue logo better"},
+        {"from": "Maya", "text": "no way, the green one pops more"},
+        {"from": "Leo", "text": "agree to disagree 😄"}
+      ]
+    },
+    {
+      "name": "who owns an account",
+      "should_reply": true,
+      "context": "Customer records: Fabrikam's account owner is Priya; the last call was Nov 20.",
+      "conversation": [
+        {"from": "Sam", "text": "who's our point person for Fabrikam these days?"}
+      ]
+    },
+    {
+      "name": "running late",
+      "should_reply": false,
+      "conversation": [
+        {"from": "Maya", "text": "running 5 min late to standup"}
+      ]
+    },
+    {
+      "name": "question for a specific person",
+      "should_reply": false,
+      "conversation": [
+        {"from": "Maya", "text": "Leo, can you send me your slides from this morning?"}
+      ]
+    }
+  ]
+}
